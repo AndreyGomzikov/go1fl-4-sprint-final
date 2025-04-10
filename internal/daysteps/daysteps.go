@@ -3,11 +3,12 @@ package daysteps
 import (
 	"errors"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 	"time"
 
-	"tracker/internal/spentcalories"
+	"github.com/Yandex-Practicum/tracker/internal/spentcalories"
 )
 
 const (
@@ -16,20 +17,34 @@ const (
 )
 
 func parsePackage(data string) (int, time.Duration, error) {
+	if strings.TrimSpace(data) == "" {
+		return 0, 0, errors.New("пустая строка данных")
+	}
+
 	parts := strings.Split(data, ",")
 	if len(parts) != 2 {
 		return 0, 0, errors.New("неверный формат данных: ожидалось два элемента, разделенных запятой")
 	}
 
-	steps, err := strconv.Atoi(strings.TrimSpace(parts[0]))
+	stepsStr := parts[0]
+
+	if stepsStr != strings.TrimSpace(stepsStr) {
+		return 0, 0, errors.New("неверный формат количества шагов: пробелы не допускаются")
+	}
+
+	if strings.Contains(stepsStr, " ") {
+		return 0, 0, errors.New("неверный формат количества шагов: пробелы внутри строки не допускаются")
+	}
+
+	steps, err := strconv.Atoi(stepsStr)
 	if err != nil || steps <= 0 {
 		return 0, 0, errors.New("ошибка преобразования количества шагов или значение меньше или равно нулю")
 	}
 
 	durationStr := strings.TrimSpace(parts[1])
 	duration, err := time.ParseDuration(durationStr)
-	if err != nil {
-		return 0, 0, fmt.Errorf("ошибка преобразования длительности: %v", err)
+	if err != nil || duration <= 0 {
+		return 0, 0, errors.New("ошибка преобразования длительности или продолжительность должна быть положительной")
 	}
 
 	return steps, duration, nil
@@ -38,23 +53,22 @@ func parsePackage(data string) (int, time.Duration, error) {
 func DayActionInfo(data string, weight, height float64) string {
 	steps, duration, err := parsePackage(data)
 	if err != nil {
-		fmt.Println("Ошибка при парсинге дневной активности:", err)
+		log.Println("Ошибка при парсинге данных:", err)
 		return ""
 	}
 
 	if steps <= 0 {
+		log.Println("Ошибка: количество шагов должно быть положительным")
 		return ""
 	}
 
-	distanceMeters := float64(steps) * stepLength
-	distanceKm := distanceMeters / mInKm
-
+	distance := float64(steps) * stepLength
 	calories, err := spentcalories.WalkingSpentCalories(steps, weight, height, duration)
 	if err != nil {
-		fmt.Println("Ошибка при расчёте калорий:", err)
+		log.Println("Ошибка при расчёте калорий:", err)
 		return ""
 	}
 
-	result := fmt.Sprintf("Количество шагов: %d.\nДистанция составила %.2f км.\nВы сожгли %.2f ккал.", steps, distanceKm, calories)
-	return result
+	return fmt.Sprintf("Количество шагов: %d.\nДистанция составила %.2f км.\nВы сожгли %.2f ккал.\n",
+		steps, distance/mInKm, calories)
 }
